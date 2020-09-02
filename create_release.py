@@ -1,7 +1,8 @@
 import argparse
-from os import path
+import os
 import subprocess
 import requests
+import shutil
 
 
 class StepException(Exception):
@@ -22,12 +23,24 @@ def mount_share(script_gen_version, drive_to_mount):
             Do you currently have access to {share}?
             Check your internet and VPN connection, try it in a file explorer.
         """)
-    if not path.isdir(r"Z:\script_generator"):
+    if not os.path.isdir(f"{drive_to_mount}:\\script_generator"):
         raise StepException(
             f"{drive_to_mount}:\\script_generator is not a directory. "
             f"Failed to mount {drive_to_mount} to drive {share}."
         )
 
+
+def copy_from_share(mounted_drive):
+    print("STEP: copy from share to local")
+    source = f"{mounted_drive}\\script_generator"
+    destination = "script_generator"
+    try:
+        print(f"Deleting destination ({destination}) directory")
+        os.rmdir(destination)
+        print(f"Copying from {source} to {destination}")
+        shutil.copytree(source, destination)
+    except (shutil.Error, OSError):
+        raise StepException(f"Failed to copy tree from {source} to {destination}")
 
 
 def create_release(script_gen_version, api_url, api_token):
@@ -63,10 +76,24 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     # Set up directory to copy from
-    if input("Do STEP: mount share?")[0].lower() == "y":
+    if input("Do STEP: mount share? (Y/N) ")[0].lower() == "y":
         mount_share(args.script_gen_version, args.drive)
+    if input("Do STEP: copy from share to local? (Y/N) ")[0].lower() == "y":
+        copy_from_share(args.drive)
     # Create release
     github_repo_api_url = "https://api.github.com/repos/ISISComputingGroup/ScriptGeneratorReleases/releases"
-    if input("Do STEP: create release?")[0].lower() == "y":
+    if input("Do STEP: create release? (Y/N) ")[0].lower() == "y":
         create_release(args.script_gen_version, github_repo_api_url, args.github_token)
+    # Remove sms lib from script generator python
+    # if input("Do STEP: remove sms lib? (Y/N) ")[0].lower() == "y":
+    #     remove_sms_lib()
+    # Zip script generator
+    # if input("Do STEP: zip script generator? (Y/N) ")[0].lower() == "y":
+    #     zip_script_gen()
+    # Upload script generator asset to release
+    # if input("Do STEP: upload script generator to release? (Y/N) ")[0].lower() == "y":
+    #     create_release(args.script_gen_version, github_repo_api_url, args.github_token)
+    # Confirm release
+    # if input("Do STEP: confirm release? (Y/N) ")[0].lower() == "y":
+    #     confirm_release(args.script_gen_version, github_repo_api_url, args.github_token)
 
