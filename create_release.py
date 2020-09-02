@@ -43,6 +43,14 @@ def copy_from_share(mounted_drive):
         raise StepException(f"Failed to copy tree from {source} to {destination}")
 
 
+def remove_sms_lib():
+    print("STEP: remove sms lib")
+
+
+def zip_script_gen():
+    print("STEP: zip script generator")
+
+
 def create_release(script_gen_version, api_url, api_token):
     print("STEP: creating release")
     response = requests.post(api_url, headers={"Authorization": f"token {api_token}"}, json={
@@ -56,6 +64,22 @@ def create_release(script_gen_version, api_url, api_token):
         print(f"Successfully created release, status code: {response.status_code}.")
     else:
         raise StepException(f"Failed to create release:\n{response.status_code}: {response.reason}")
+
+
+def upload_script_generator_asset(script_gen_version, api_url, api_token):
+    print("STEP: upload script generator to release")
+
+
+def download_release(script_gen_version, api_url):
+    print("STEP: download release")
+
+
+def smoke_test_release():
+    print("STEP: smoke test release")
+
+
+def confirm_and_publish_release(script_gen_version, api_url, api_token):
+    print("STEP: confirm release")
 
 
 if __name__ == "__main__":
@@ -75,25 +99,26 @@ if __name__ == "__main__":
         help="The drive to mount the shares to, defaults to Z:"
     )
     args = parser.parse_args()
-    # Set up directory to copy from
+    # Set up zip assets to upload
     if input("Do STEP: mount share? (Y/N) ")[0].lower() == "y":
         mount_share(args.script_gen_version, args.drive)
     if input("Do STEP: copy from share to local? (Y/N) ")[0].lower() == "y":
         copy_from_share(args.drive)
+    if input("Do STEP: remove sms lib? (Y/N) ")[0].lower() == "y":
+        remove_sms_lib()
+    if input("Do STEP: zip script generator? (Y/N) ")[0].lower() == "y":
+        zip_script_gen()
     # Create release
     github_repo_api_url = "https://api.github.com/repos/ISISComputingGroup/ScriptGeneratorReleases/releases"
     if input("Do STEP: create release? (Y/N) ")[0].lower() == "y":
         create_release(args.script_gen_version, github_repo_api_url, args.github_token)
-    # Remove sms lib from script generator python
-    # if input("Do STEP: remove sms lib? (Y/N) ")[0].lower() == "y":
-    #     remove_sms_lib()
-    # Zip script generator
-    # if input("Do STEP: zip script generator? (Y/N) ")[0].lower() == "y":
-    #     zip_script_gen()
-    # Upload script generator asset to release
-    # if input("Do STEP: upload script generator to release? (Y/N) ")[0].lower() == "y":
-    #     create_release(args.script_gen_version, github_repo_api_url, args.github_token)
-    # Confirm release
-    # if input("Do STEP: confirm release? (Y/N) ")[0].lower() == "y":
-    #     confirm_release(args.script_gen_version, github_repo_api_url, args.github_token)
+    if input("Do STEP: upload script generator to release? (Y/N) ")[0].lower() == "y":
+        upload_script_generator_asset(args.script_gen_version, github_repo_api_url, args.github_token)
+    # Smoke test release
+    if input("Do STEP: download release? (Y/N) ")[0].lower() == "y":
+        download_release(args.script_gen_version, github_repo_api_url)
+    if input("Do STEP: smoke test release? (Y/N) ")[0].lower() == "y":
+        smoke_test_release()
+    if input("Do STEP: confirm and publish release? (Y/N) ")[0].lower() == "y":
+        confirm_and_publish_release(args.script_gen_version, github_repo_api_url, args.github_token)
 
