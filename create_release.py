@@ -3,16 +3,23 @@ import os
 import subprocess
 import requests
 import shutil
+from typing import Callable, Any
 
 
 class StepException(Exception):
     pass
 
 
-def mount_share(script_gen_version, drive_to_mount):
-    print("STEP: mount share")
-    share = r"\\isis.cclrc.ac.uk\inst$\Kits$\CompGroup\ICP" \
-            r"\Releases\script_generator_release\Script_Gen_{}\script_generator".format(script_gen_version)
+def mount_share(script_gen_version: str, drive_to_mount: str) -> None:
+    """
+    Call net use to mount the script generator share for the given script_gen_version to the drive_to_mount.
+
+    Args:
+        script_gen_version (str): The version of the script generator to mount
+        drive_to_mount (str): The letter of the drive to mount e.g. Z: or U:
+    """
+    share: str = r"\\isis.cclrc.ac.uk\inst$\Kits$\CompGroup\ICP" \
+                 r"\Releases\script_generator_release\Script_Gen_{}\script_generator".format(script_gen_version)
     try:
         subprocess.check_call(f"net use {drive_to_mount} {share}", shell=True, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError:
@@ -30,30 +37,61 @@ def mount_share(script_gen_version, drive_to_mount):
         )
 
 
-def copy_from_share(mounted_drive):
-    print("STEP: copy from share to local")
-    source = f"{mounted_drive}\\script_generator"
-    destination = "script_generator"
+def copy_from_share(mounted_drive: str) -> None:
+    """
+    Remove any past downloaded script generators with the share on the mounted_drive to the local area.
+
+    Args:
+        mounted_drive str: The letter drive that has been mounted from the share to copy the script generator off.
+    """
+    source: str = f"{mounted_drive}\\script_generator"
+    destination: str = "script_generator"
     try:
         print(f"Deleting destination ({destination}) directory")
-        os.rmdir(destination)
+        shutil.rmtree(destination)
         print(f"Copying from {source} to {destination}")
         shutil.copytree(source, destination)
     except (shutil.Error, OSError):
         raise StepException(f"Failed to copy tree from {source} to {destination}")
 
 
-def remove_sms_lib():
-    print("STEP: remove sms lib")
+def remove_sms_lib() -> None:
+    """
+    Remove the sms lib from the downloaded script generator to prepare it for upload.
+    """
+    pass
 
 
-def zip_script_gen():
-    print("STEP: zip script generator")
+def zip_script_gen() -> None:
+    """
+    Remove any past zips and zip the local script generator to script_generator.zip to prepare it for upload.
+    """
+    try:
+        print("Removing script_generator.zip")
+        try:
+            os.remove("script_generator.zip")
+        except FileNotFoundError:
+            pass
+        print("Zipping script_generator")
+        shutil.make_archive("script_generator", "zip", "script_generator")
+    except (shutil.Error, OSError):
+        raise StepException("Failed to remove script_generator.zip and make new zip archive")
 
 
-def create_release(script_gen_version, api_url, api_token):
-    print("STEP: creating release")
-    response = requests.post(api_url, headers={"Authorization": f"token {api_token}"}, json={
+def create_release(script_gen_version: str, api_url: str, api_token: str) -> str:
+    """
+    Create a draft release in github as a placeholder to upload the zipped script generator to.
+
+    Args:
+        script_gen_version (str): The version of the script generator to create a release for.
+        api_url (str): The github api url to create the script generator release in.
+        api_token (str): A personal access token to push the release to github with.
+
+
+    Returns:
+         str: The id of the release to push the zipped script generator to.
+    """
+    response: requests.Response = requests.post(api_url, headers={"Authorization": f"token {api_token}"}, json={
             "tag_name": "base",
             "name": f"v{script_gen_version}",
             "body": f"Version {script_gen_version} of the script generator available for download",
@@ -62,24 +100,80 @@ def create_release(script_gen_version, api_url, api_token):
     })
     if 200 <= response.status_code < 300:
         print(f"Successfully created release, status code: {response.status_code}.")
+        return str(response.json()["id"])
     else:
         raise StepException(f"Failed to create release:\n{response.status_code}: {response.reason}")
 
 
-def upload_script_generator_asset(script_gen_version, api_url, api_token):
-    print("STEP: upload script generator to release")
+def upload_script_generator_asset(api_url: str, api_token: str, release_id: str) -> None:
+    """
+    Upload the zipped script generator to the release with release_id.
+
+    Args:
+        api_url (str): The github uploads api url to upload the zip to
+        api_token (str): A personal access token to push the zip to
+        release_id (str): The id of the github script generator release to upload the zip to
+    """
+    if release_id is None:
+        print("Release id has not been defined when creating the release.")
+        release_id = input("Please input release id >> ")
+    response: requests.Response = requests.post(
+        f"{api_url}/{release_id}/assets?name=script_generator.zip",
+        headers={"Authorization": f"token {api_token}"},
+        files={"script_generator.zip": open("script_generator.zip", "rb")}
+    )
+    if 200 <= response.status_code < 300:
+        print(f"Successfully uploaded script_generator.zip assert, status code: {response.status_code}.")
+    else:
+        raise StepException(f"Failed to create release:\n{response.status_code}: {response.reason}")
 
 
-def download_release(script_gen_version, api_url):
-    print("STEP: download release")
+def download_release() -> None:
+    """
+    Instructions to follow to download the release of the script generator as a user would.
+    """
+    print("Follow steps on https://github.com/ISISComputingGroup/ibex_user_manual/wiki"
+          "/Downloading-and-Installing-The-IBEX-Script-Generator to download and install the script generator")
+    if input("When complete, if successful type Y >> ")[0].lower() != "y":
+        raise StepException(
+            "Failed download, please redo earlier steps or complete "
+            "download and rerun script, then complete smoke tests."
+        )
 
 
-def smoke_test_release():
-    print("STEP: smoke test release")
+def smoke_test_release() -> None:
+    """
+    Steps to smoke test the downloaded release of the script generator.
+    """
+    pass
 
 
-def confirm_and_publish_release(script_gen_version, api_url, api_token):
-    print("STEP: confirm release")
+def confirm_and_publish_release(script_gen_version: str, api_url: str, api_token: str) -> None:
+    """
+    After smoke testing confirm the release is ok and publish it.
+
+    Args:
+        script_gen_version (str): The version of the script generator to confirm as a release.
+        api_url (str): The github api url to publish the release with.
+        api_token (str): A personal access token to publish the release with.
+    """
+    pass
+
+
+def run_step(step_description: str, step_lambda: Callable) -> Any:
+    """
+    Ask a user if they want to run a step and then call the function to run that step if they do.
+
+    Args:
+        step_description (str): A short description of the step e.g. smoke test release
+        step_lambda (lambda): A lambda function that runs the step
+
+    Returns:
+        Any: Returns what is returned by the lambda function or None.
+    """
+    if input(f"\n\nDo STEP: {step_description}? (Y/N) ")[0].lower() == "y":
+        print(f"STEP: {step_description}")
+        return step_lambda()
 
 
 if __name__ == "__main__":
@@ -100,25 +194,25 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     # Set up zip assets to upload
-    if input("Do STEP: mount share? (Y/N) ")[0].lower() == "y":
-        mount_share(args.script_gen_version, args.drive)
-    if input("Do STEP: copy from share to local? (Y/N) ")[0].lower() == "y":
-        copy_from_share(args.drive)
-    if input("Do STEP: remove sms lib? (Y/N) ")[0].lower() == "y":
-        remove_sms_lib()
-    if input("Do STEP: zip script generator? (Y/N) ")[0].lower() == "y":
-        zip_script_gen()
+    run_step("mount share", lambda: mount_share(args.script_gen_version, args.drive))
+    run_step("copy from share to local", lambda: copy_from_share(args.drive))
+    run_step("remove sms lib", lambda: remove_sms_lib())
+    run_step("zip script generator", lambda: zip_script_gen())
     # Create release
     github_repo_api_url = "https://api.github.com/repos/ISISComputingGroup/ScriptGeneratorReleases/releases"
-    if input("Do STEP: create release? (Y/N) ")[0].lower() == "y":
-        create_release(args.script_gen_version, github_repo_api_url, args.github_token)
-    if input("Do STEP: upload script generator to release? (Y/N) ")[0].lower() == "y":
-        upload_script_generator_asset(args.script_gen_version, github_repo_api_url, args.github_token)
+    github_repo_uploads_url = "https://uploads.github.com/repos/ISISComputingGroup/ScriptGeneratorReleases/releases"
+    release_id = run_step(
+        "create release", lambda: create_release(args.script_gen_version, github_repo_api_url, args.github_token)
+    )
+    run_step(
+        "upload script generator to release",
+        lambda: upload_script_generator_asset(github_repo_uploads_url, args.github_token, release_id)
+    )
     # Smoke test release
-    if input("Do STEP: download release? (Y/N) ")[0].lower() == "y":
-        download_release(args.script_gen_version, github_repo_api_url)
-    if input("Do STEP: smoke test release? (Y/N) ")[0].lower() == "y":
-        smoke_test_release()
-    if input("Do STEP: confirm and publish release? (Y/N) ")[0].lower() == "y":
-        confirm_and_publish_release(args.script_gen_version, github_repo_api_url, args.github_token)
+    run_step("download release", lambda: download_release())
+    run_step("smoke test release", lambda: smoke_test_release())
+    run_step(
+        "confirm and publish release",
+        lambda: confirm_and_publish_release(args.script_gen_version, github_repo_api_url, args.github_token)
+    )
 
