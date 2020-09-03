@@ -59,7 +59,24 @@ def remove_sms_lib() -> None:
     """
     Remove the sms lib from the downloaded script generator to prepare it for upload.
     """
-    pass
+    plugins_dir = os.path.join("script_generator", "plugins")
+    sms_lib_dir = None
+    for name in os.listdir(plugins_dir):
+        if os.path.isdir(os.path.join(plugins_dir, name)) and name.startswith("uk.ac.stfc.isis.ibex.preferences"):
+            sms_lib_dir = os.path.join(
+                plugins_dir, name, "resources", "Python3", "Lib", "site-packages", "smslib"
+            )
+            break
+    else:
+        input(
+            f"Could not find preferences plugin that contains Python. "
+            f"Please remove smslib from bundled Python manually and press enter to continue."
+        )
+    try:
+        if sms_lib_dir is not None:
+            shutil.rmtree(sms_lib_dir)
+    except (FileNotFoundError, OSError):
+        input(f"Could not remove {sms_lib_dir}. Please do so manually and press enter to continue.")
 
 
 def zip_script_gen() -> None:
@@ -132,20 +149,24 @@ def download_release() -> None:
     """
     Instructions to follow to download the release of the script generator as a user would.
     """
-    print("Follow steps on https://github.com/ISISComputingGroup/ibex_user_manual/wiki"
-          "/Downloading-and-Installing-The-IBEX-Script-Generator to download and install the script generator")
-    if input("When complete, if successful type Y >> ")[0].lower() != "y":
-        raise StepException(
-            "Failed download, please redo earlier steps or complete "
-            "download and rerun script, then complete smoke tests."
-        )
+    input(
+        "Follow steps on https://github.com/ISISComputingGroup/ibex_user_manual/wiki"
+        "/Downloading-and-Installing-The-IBEX-Script-Generator to download and install the script generator.\n"
+        "Once finished, press enter to continue. "
+    )
+    input(
+        "Rename C:\\Instrument\\Apps\\Python3 to C:\\Instrument\\Apps\\Python3_temp "
+        "to ensure smoke testing uses correct Python.\n"
+        "Once finished, press enter to continue. "
+    )
+
 
 
 def smoke_test_release() -> None:
     """
     Steps to smoke test the downloaded release of the script generator.
     """
-    pass
+    input("Check log for any issues complaining about mocking smslib. Press enter to continue.")
 
 
 def confirm_and_publish_release(script_gen_version: str, api_url: str, api_token: str) -> None:
@@ -158,6 +179,13 @@ def confirm_and_publish_release(script_gen_version: str, api_url: str, api_token
         api_token (str): A personal access token to publish the release with.
     """
     pass
+
+
+def post_steps() -> None:
+    """
+    Steps to run after testing.
+    """
+    input(r"Undo name change of C:\Instrument\Apps\Python3. Press enter once done.")
 
 
 def run_step(step_description: str, step_lambda: Callable) -> Any:
@@ -215,4 +243,5 @@ if __name__ == "__main__":
         "confirm and publish release",
         lambda: confirm_and_publish_release(args.script_gen_version, github_repo_api_url, args.github_token)
     )
+    run_step("post steps", lambda: post_steps())
 
