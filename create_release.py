@@ -154,19 +154,103 @@ def download_release() -> None:
         "/Downloading-and-Installing-The-IBEX-Script-Generator to download and install the script generator.\n"
         "Once finished, press enter to continue. "
     )
-    input(
-        "Rename C:\\Instrument\\Apps\\Python3 to C:\\Instrument\\Apps\\Python3_temp "
-        "to ensure smoke testing uses correct Python.\n"
-        "Once finished, press enter to continue. "
-    )
-
 
 
 def smoke_test_release() -> None:
     """
     Steps to smoke test the downloaded release of the script generator.
     """
-    input("Check log for any issues complaining about mocking smslib. Press enter to continue.")
+    # Startup
+    input(
+        "Rename C:\\Instrument\\Apps\\Python3 to C:\\Instrument\\Apps\\Python3_temp "
+        "to ensure smoke testing uses correct Python.\n"
+        "You may have to stop and rerun this script (you can skip past steps).\n"
+        "Once finished, press enter to continue.\n"
+    )
+    input(
+        "Start up the downloaded release by running the .exe.\n"
+        "The script generator should load in less than a few seconds.\n"
+        "Once finished, press enter to continue.\n"
+    )
+    input(
+        "Is there a box containing script definition errors?\n"
+        "If none then that is fine, if there are they logical or are they a problem?\n"
+        "Does the help text, and the columns update?\n"
+    )
+    input(
+        "Attempt to switch between script definitions.\n"
+        "Does the help text, and the columns update?\n"
+    )
+    # Handling actions in the table + validity
+    input(
+        "On a relevant script definition add 2 actions.\n"
+        "Does the focus changed to the added action?\n"
+    )
+    input(
+        "Change the values of both actions to be valid.\n"
+        "Change the values of both actions to be invalid.\n"
+        "When you click the Get Validity Errors button does a list of errors show?\n"
+        "When you hover over an invalid row, does a relevant tooltip appear?\n"
+    )
+    input(
+        "Change the values of both actions to be valid but different.\n"
+        "Does the display of whether the actions are valid or not make sense?\n"
+        "Does the Get Validity Errors button become enabled and disabled correctly?\n"
+    )
+    input(
+        "Duplicate one of the actions.\n"
+        "Independently change the values of the new and duplicated actions.\n"
+        "Do values both change independently and not affect each other's value?\n"
+    )
+    input(
+        "Highlight two actions and duplicate them.\n"
+        "Are there two new values?\n"
+        "Do they have the expected values?\n"
+        "Independently change the values of the new and duplicated actions.\n"
+        "Do values both change independently and not affect each other's value?\n"
+    )
+    input(
+        "Highlight actions and move them up and down.\n"
+        "Do the actions rows move around logically?\n"
+    )
+    input(
+        "Highlight two actions and delete them.\n"
+        "Were the selected two actions deleted?\n"
+    )
+    input(
+        "Press the Clear All Actions button.\n"
+        "Are all rows deleted?\n"
+    )
+    # Parameter handling
+    input(
+        "Add two valid actions.\n"
+        "Save the parameters.\n"
+        "Load the saved parameters back twice, the first time replacing and the second appending.\n"
+        "Are rows replaced and then appended to correctly?\n"
+    )
+    # Estimated run time
+    input(
+        "Does the estimated run time display logically add estimated row times together?\n"
+    )
+    # Generation
+    input(
+        "Press the generate script button.\n"
+        "Save and open in the editor.\n"
+        "Does the generated script display in notepad++?\n"
+        "Is the correct script definition loaded into it?\n"
+        "Is there a runscript method with all my actions in?\n"
+        "Is there a variable called value containing a compressed json string?\n"
+    )
+    # Manual
+    input(
+        "Click the Open Manual button.\n"
+        "Has the Using the Script Generator page opened in a web browser?\n"
+    )
+    # Log checks
+    input(
+        "Check log for any issues complaining about mocking smslib and others that look suspicious.\n"
+        "Press enter to continue."
+    )
 
 
 def confirm_and_publish_release(script_gen_version: str, api_url: str, api_token: str) -> None:
