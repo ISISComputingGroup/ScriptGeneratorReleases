@@ -145,22 +145,16 @@ def upload_script_generator_asset(api_url: str, api_token: str, release_id: str)
         raise StepException(f"Failed to create release:\n{response.status_code}: {response.reason}")
 
 
-def download_release() -> None:
-    """
-    Instructions to follow to download the release of the script generator as a user would.
-    """
-    input(
-        "Follow steps on https://github.com/ISISComputingGroup/ibex_user_manual/wiki"
-        "/Downloading-and-Installing-The-IBEX-Script-Generator to download and install the script generator.\n"
-        "Once finished, press enter to continue. "
-    )
-
-
 def smoke_test_release() -> None:
     """
     Steps to smoke test the downloaded release of the script generator.
     """
     # Startup
+    input(
+        "Follow steps on https://github.com/ISISComputingGroup/ibex_user_manual/wiki"
+        "/Downloading-and-Installing-The-IBEX-Script-Generator to download and install the script generator.\n"
+        "Once finished, press enter to continue. "
+    )
     input(
         "Rename C:\\Instrument\\Apps\\Python3 to C:\\Instrument\\Apps\\Python3_temp "
         "to ensure smoke testing uses correct Python.\n"
@@ -249,27 +243,32 @@ def smoke_test_release() -> None:
     # Log checks
     input(
         "Check log for any issues complaining about mocking smslib and others that look suspicious.\n"
-        "Press enter to continue."
+        "Press enter to continue.\n"
     )
+    input(r"Undo name change of C:\Instrument\Apps\Python3. Press enter once done.")
 
 
-def confirm_and_publish_release(script_gen_version: str, api_url: str, api_token: str) -> None:
+def confirm_and_publish_release(api_url: str, api_token: str, release_id: str) -> None:
     """
     After smoke testing confirm the release is ok and publish it.
 
     Args:
-        script_gen_version (str): The version of the script generator to confirm as a release.
         api_url (str): The github api url to publish the release with.
         api_token (str): A personal access token to publish the release with.
+        release_id (str): The id of the release on github to confirm and publish.
     """
-    pass
-
-
-def post_steps() -> None:
-    """
-    Steps to run after testing.
-    """
-    input(r"Undo name change of C:\Instrument\Apps\Python3. Press enter once done.")
+    if release_id is None:
+        print("Release id has not been defined when creating the release.")
+        release_id = input("Please input release id >> ")
+    response: requests.Response = requests.post(
+        f"{api_url}/{release_id}", headers={"Authorization": f"token {api_token}"}, json={
+            "draft": False,
+            "prerelease": False
+    })
+    if 200 <= response.status_code < 300:
+        print(f"Successfully confirmed and published release, status code: {response.status_code}.")
+    else:
+        raise StepException(f"Failed to confirm and publish release:\n{response.status_code}: {response.reason}")
 
 
 def run_step(step_description: str, step_lambda: Callable) -> Any:
@@ -321,11 +320,8 @@ if __name__ == "__main__":
         lambda: upload_script_generator_asset(github_repo_uploads_url, args.github_token, release_id)
     )
     # Smoke test release
-    run_step("download release", lambda: download_release())
     run_step("smoke test release", lambda: smoke_test_release())
     run_step(
         "confirm and publish release",
-        lambda: confirm_and_publish_release(args.script_gen_version, github_repo_api_url, args.github_token)
+        lambda: confirm_and_publish_release(github_repo_api_url, args.github_token, release_id)
     )
-    run_step("post steps", lambda: post_steps())
-
