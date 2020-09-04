@@ -57,21 +57,28 @@ def copy_from_share(mounted_drive: str) -> None:
 
 def remove_sms_lib() -> None:
     """
-    Remove the sms lib from the downloaded script generator to prepare it for upload.
+    Remove the sms lib from the downloaded script generator and check for correct usage to prepare it for upload.
     """
     plugins_dir = os.path.join("script_generator", "plugins")
     sms_lib_dir = None
+    bundled_python_dir = "<bundled python directory>"
     for name in os.listdir(plugins_dir):
         if os.path.isdir(os.path.join(plugins_dir, name)) and name.startswith("uk.ac.stfc.isis.ibex.preferences"):
-            sms_lib_dir = os.path.join(
-                plugins_dir, name, "resources", "Python3", "Lib", "site-packages", "smslib"
-            )
+            bundled_python_dir = os.path.join(plugins_dir, name, "resources", "Python3")
+            sms_lib_dir = os.path.join(bundled_python_dir, "Lib", "site-packages", "smslib")
             break
     else:
         input(
             f"Could not find preferences plugin that contains Python. "
             f"Please remove smslib from bundled Python manually and press enter to continue."
         )
+    input(
+        f"\nPlease search for usages of smslib in {bundled_python_dir}.\n"
+        f"E.g. in bash `grep -r smslib {bundled_python_dir}`\n\n"
+        f"If any instances of usage do not import with a try except for ImportError and a mocked version of smslib "
+        f"in the except clause please correct this.\n\n"
+        f"Press enter when finished.\n"
+    )
     try:
         if sms_lib_dir is not None:
             shutil.rmtree(sms_lib_dir)
@@ -112,17 +119,19 @@ def create_release(script_gen_version: str, api_url: str, api_token: str) -> str
             "tag_name": "base",
             "name": f"v{script_gen_version}",
             "body": f"Version {script_gen_version} of the script generator available for download",
-            "draft": True,
-            "prerelease": True
+            "draft": False,
+            "prerelease": False
     })
     if 200 <= response.status_code < 300:
         print(f"Successfully created release, status code: {response.status_code}.")
-        return str(response.json()["id"])
+        release_id = str(response.json()["id"])
+        print(f"Please keep a note of release id: {release_id}")
+        return release_id
     else:
         raise StepException(f"Failed to create release:\n{response.status_code}: {response.reason}")
 
 
-def upload_script_generator_asset(api_url: str, api_token: str, release_id: str) -> None:
+def _upload_script_generator_asset(api_url: str, api_token: str, release_id: str) -> None:
     """
     Upload the zipped script generator to the release with release_id.
 
@@ -131,9 +140,6 @@ def upload_script_generator_asset(api_url: str, api_token: str, release_id: str)
         api_token (str): A personal access token to push the zip to
         release_id (str): The id of the github script generator release to upload the zip to
     """
-    if release_id is None:
-        print("Release id has not been defined when creating the release.")
-        release_id = input("Please input release id >> ")
     response: requests.Response = requests.post(
         f"{api_url}/{release_id}/assets?name=script_generator.zip",
         headers={"Authorization": f"token {api_token}"},
@@ -142,7 +148,50 @@ def upload_script_generator_asset(api_url: str, api_token: str, release_id: str)
     if 200 <= response.status_code < 300:
         print(f"Successfully uploaded script_generator.zip assert, status code: {response.status_code}.")
     else:
-        raise StepException(f"Failed to create release:\n{response.status_code}: {response.reason}")
+        raise StepException(f"Failed to create release: {response.status_code}: {response.reason}")
+
+
+def upload_script_generator_asset_step(upload_url: str, api_url: str, api_token: str, release_id: str) -> None:
+    """
+    Check if the asset already exists and delete if it does and the user wants to.
+    Upload the zipped script generator to the release with release_id.
+
+    Args:
+        upload_url (str): The github uploads api url to upload the zip to
+        api_url (str): The github api url to check assets and delete assets with
+        api_token (str): A personal access token to push the zip to
+        release_id (str): The id of the github script generator release to upload the zip to
+    """
+    if release_id is None:
+        print("Release id has not been defined when creating the release.")
+        release_id = input("Please input release id >> ")
+    check_assets_response: requests.Response = requests.get(
+        f"{api_url}/{release_id}/assets",
+    )
+    asset_id = None
+    for asset in check_assets_response.json():
+        if asset["name"] == "script_generator.zip":
+            asset_id = asset["id"]
+            break
+    if asset_id is not None:
+        user_response = input(
+            "script_generator.zip already exists. Would you like to delete it and upload a new one? (Y/N) "
+        )
+        if user_response[0].lower() == "y":
+            delete_asset_response: requests.Response = requests.delete(
+                f"{api_url}/assets/{asset_id}",
+                headers={"Authorization": f"token {api_token}"}
+            )
+            if 200 <= delete_asset_response.status_code < 300:
+                print(f"Failed to delete script_generator.zip asset, status code: {delete_asset_response.status_code}.")
+            else:
+                print(
+                    f"Failed to delete script_generator.zip asset. Please do so manually. Error: "
+                    f"{delete_asset_response.status_code}: {delete_asset_response.reason}"
+                )
+            _upload_script_generator_asset(upload_url, api_token, release_id)
+    else:
+        _upload_script_generator_asset(upload_url, api_token, release_id)
 
 
 def smoke_test_release() -> None:
@@ -248,9 +297,9 @@ def smoke_test_release() -> None:
     input(r"Undo name change of C:\Instrument\Apps\Python3. Press enter once done.")
 
 
-def confirm_and_publish_release(api_url: str, api_token: str, release_id: str) -> None:
+def remove_release(api_url: str, api_token: str, release_id: str) -> None:
     """
-    After smoke testing confirm the release is ok and publish it.
+    If smoke testing has failed delete the release.
 
     Args:
         api_url (str): The github api url to publish the release with.
@@ -260,15 +309,16 @@ def confirm_and_publish_release(api_url: str, api_token: str, release_id: str) -
     if release_id is None:
         print("Release id has not been defined when creating the release.")
         release_id = input("Please input release id >> ")
-    response: requests.Response = requests.post(
-        f"{api_url}/{release_id}", headers={"Authorization": f"token {api_token}"}, json={
-            "draft": False,
-            "prerelease": False
-    })
-    if 200 <= response.status_code < 300:
-        print(f"Successfully confirmed and published release, status code: {response.status_code}.")
+    if input("Are you sure you want to delete the release? ")[0].lower() == "y":
+        response: requests.Response = requests.delete(
+            f"{api_url}/{release_id}", headers={"Authorization": f"token {api_token}"}
+        )
+        if 200 <= response.status_code < 300:
+            print(f"Successfully confirmed and published release, status code: {response.status_code}.")
+        else:
+            raise StepException(f"Failed to confirm and publish release:\n{response.status_code}: {response.reason}")
     else:
-        raise StepException(f"Failed to confirm and publish release:\n{response.status_code}: {response.reason}")
+        print("Release not deleted")
 
 
 def run_step(step_description: str, step_lambda: Callable) -> Any:
@@ -317,11 +367,13 @@ if __name__ == "__main__":
     )
     run_step(
         "upload script generator to release",
-        lambda: upload_script_generator_asset(github_repo_uploads_url, args.github_token, release_id)
+        lambda: upload_script_generator_asset_step(
+            github_repo_uploads_url, github_repo_api_url, args.github_token, release_id
+        )
     )
     # Smoke test release
     run_step("smoke test release", lambda: smoke_test_release())
     run_step(
-        "confirm and publish release",
-        lambda: confirm_and_publish_release(github_repo_api_url, args.github_token, release_id)
+        "If smoke test has failed, delete release",
+        lambda: remove_release(github_repo_api_url, args.github_token, release_id)
     )
