@@ -7,7 +7,9 @@ from typing import Callable, Any
 
 
 class StepException(Exception):
-    pass
+
+    def __init__(self, message):
+        self.message = message
 
 
 def mount_share(script_gen_version: str, drive_to_mount: str) -> None:
@@ -22,19 +24,20 @@ def mount_share(script_gen_version: str, drive_to_mount: str) -> None:
                  r"\Releases\script_generator_release\Script_Gen_{}\script_generator".format(script_gen_version)
     try:
         subprocess.check_call(f"net use {drive_to_mount} {share}", shell=True, stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
         raise StepException(f"""
             Failed to mount {drive_to_mount} to drive {share}.
             Is drive {drive_to_mount} already in use?
-            If yes specify rerun and specify a free drive with the -d r --drive argument.
+            If yes rerun and specify a free drive with the `-d` or `--drive` argument.
             Do you currently have access to {share}?
-            Check your internet and VPN connection, try it in a file explorer.
+            Check your internet and VPN connection, try it in a file explorer.\n
+            Original error: {e}
         """)
     if not os.path.isdir(f"{drive_to_mount}:\\script_generator"):
-        raise StepException(
-            f"{drive_to_mount}:\\script_generator is not a directory. "
-            f"Failed to mount {drive_to_mount} to drive {share}."
-        )
+        raise StepException(f"""
+            {drive_to_mount}:\\script_generator is not a directory.
+            Failed to mount {drive_to_mount} to drive {share}.
+        """)
 
 
 def copy_from_share(mounted_drive: str) -> None:
@@ -51,8 +54,11 @@ def copy_from_share(mounted_drive: str) -> None:
         shutil.rmtree(destination)
         print(f"Copying from {source} to {destination}")
         shutil.copytree(source, destination)
-    except (shutil.Error, OSError):
-        raise StepException(f"Failed to copy tree from {source} to {destination}")
+    except (shutil.Error, OSError) as e:
+        raise StepException(f"""
+            Failed to copy tree from {source} to {destination}.\n
+            Original error: {e}
+        """)
 
 
 def remove_sms_lib() -> None:
@@ -98,8 +104,11 @@ def zip_script_gen() -> None:
             pass
         print("Zipping script_generator")
         shutil.make_archive("script_generator", "zip", "script_generator")
-    except (shutil.Error, OSError):
-        raise StepException("Failed to remove script_generator.zip and make new zip archive")
+    except (shutil.Error, OSError) as e:
+        raise StepException(f"""
+            Failed to remove script_generator.zip and make new zip archive.\n
+            Original error: {e}
+        """)
 
 
 def create_release(script_gen_version: str, api_url: str, api_token: str) -> str:
@@ -128,70 +137,27 @@ def create_release(script_gen_version: str, api_url: str, api_token: str) -> str
         print(f"Please keep a note of release id: {release_id}")
         return release_id
     else:
-        raise StepException(f"Failed to create release:\n{response.status_code}: {response.reason}")
+        raise StepException(f"""
+            Failed to create release, github response:
+            {response.status_code}: {response.reason}
+        """)
 
 
-def _upload_script_generator_asset(api_url: str, api_token: str, release_id: str) -> None:
+def upload_script_generator_asset_step() -> None:
     """
-    Upload the zipped script generator to the release with release_id.
-
-    Args:
-        api_url (str): The github uploads api url to upload the zip to
-        api_token (str): A personal access token to push the zip to
-        release_id (str): The id of the github script generator release to upload the zip to
+    Instructions to check if the asset already exists and delete if it does and the user wants to.
+    Upload the zipped script generator to the release.
     """
-    response: requests.Response = requests.post(
-        f"{api_url}/{release_id}/assets?name=script_generator.zip",
-        headers={"Authorization": f"token {api_token}"},
-        files={"script_generator.zip": open("script_generator.zip", "rb")}
+    input(
+        "Unfortunately we cannot script the uploading of an asset as it fails consistently.\n"
+        "In the ScriptGeneratorReleases folder there should be a script_generator.zip file. "
+        "If not rerun the zip script generator step.\n\n"
+        "Visit https://github.com/ISISComputingGroup/ScriptGeneratorReleases/releases and locate the release you want "
+        "to upload the zip to, click edit on this release.\n"
+        "Drag and drop script_generator.zip into the box saying `Attach binaries by dropping...`.\n"
+        "This will then take a minute or so to upload.\n\n"
+        "Press enter when complete.\n"
     )
-    if 200 <= response.status_code < 300:
-        print(f"Successfully uploaded script_generator.zip assert, status code: {response.status_code}.")
-    else:
-        raise StepException(f"Failed to create release: {response.status_code}: {response.reason}")
-
-
-def upload_script_generator_asset_step(upload_url: str, api_url: str, api_token: str, release_id: str) -> None:
-    """
-    Check if the asset already exists and delete if it does and the user wants to.
-    Upload the zipped script generator to the release with release_id.
-
-    Args:
-        upload_url (str): The github uploads api url to upload the zip to
-        api_url (str): The github api url to check assets and delete assets with
-        api_token (str): A personal access token to push the zip to
-        release_id (str): The id of the github script generator release to upload the zip to
-    """
-    if release_id is None:
-        print("Release id has not been defined when creating the release.")
-        release_id = input("Please input release id >> ")
-    check_assets_response: requests.Response = requests.get(
-        f"{api_url}/{release_id}/assets",
-    )
-    asset_id = None
-    for asset in check_assets_response.json():
-        if asset["name"] == "script_generator.zip":
-            asset_id = asset["id"]
-            break
-    if asset_id is not None:
-        user_response = input(
-            "script_generator.zip already exists. Would you like to delete it and upload a new one? (Y/N) "
-        )
-        if user_response[0].lower() == "y":
-            delete_asset_response: requests.Response = requests.delete(
-                f"{api_url}/assets/{asset_id}",
-                headers={"Authorization": f"token {api_token}"}
-            )
-            if 200 <= delete_asset_response.status_code < 300:
-                print(f"Failed to delete script_generator.zip asset, status code: {delete_asset_response.status_code}.")
-            else:
-                print(
-                    f"Failed to delete script_generator.zip asset. Please do so manually. Error: "
-                    f"{delete_asset_response.status_code}: {delete_asset_response.reason}"
-                )
-            _upload_script_generator_asset(upload_url, api_token, release_id)
-    else:
-        _upload_script_generator_asset(upload_url, api_token, release_id)
 
 
 def smoke_test_release() -> None:
@@ -316,7 +282,10 @@ def remove_release(api_url: str, api_token: str, release_id: str) -> None:
         if 200 <= response.status_code < 300:
             print(f"Successfully confirmed and published release, status code: {response.status_code}.")
         else:
-            raise StepException(f"Failed to confirm and publish release:\n{response.status_code}: {response.reason}")
+            raise StepException(f"""
+                Failed to confirm and publish release, github reponse:
+                {response.status_code}: {response.reason}
+            """)
     else:
         print("Release not deleted")
 
@@ -354,26 +323,24 @@ if __name__ == "__main__":
         help="The drive to mount the shares to, defaults to Z:"
     )
     args = parser.parse_args()
-    # Set up zip assets to upload
-    run_step("mount share", lambda: mount_share(args.script_gen_version, args.drive))
-    run_step("copy from share to local", lambda: copy_from_share(args.drive))
-    run_step("remove sms lib", lambda: remove_sms_lib())
-    run_step("zip script generator", lambda: zip_script_gen())
-    # Create release
-    github_repo_api_url = "https://api.github.com/repos/ISISComputingGroup/ScriptGeneratorReleases/releases"
-    github_repo_uploads_url = "https://uploads.github.com/repos/ISISComputingGroup/ScriptGeneratorReleases/releases"
-    release_id = run_step(
-        "create release", lambda: create_release(args.script_gen_version, github_repo_api_url, args.github_token)
-    )
-    run_step(
-        "upload script generator to release",
-        lambda: upload_script_generator_asset_step(
-            github_repo_uploads_url, github_repo_api_url, args.github_token, release_id
+    try:
+        # Set up zip assets to upload
+        run_step("mount share", lambda: mount_share(args.script_gen_version, args.drive))
+        run_step("copy from share to local", lambda: copy_from_share(args.drive))
+        run_step("remove sms lib", lambda: remove_sms_lib())
+        run_step("zip script generator", lambda: zip_script_gen())
+        # Create release
+        github_repo_api_url = "https://api.github.com/repos/ISISComputingGroup/ScriptGeneratorReleases/releases"
+        github_repo_uploads_url = "https://uploads.github.com/repos/ISISComputingGroup/ScriptGeneratorReleases/releases"
+        release_id = run_step(
+            "create release", lambda: create_release(args.script_gen_version, github_repo_api_url, args.github_token)
         )
-    )
-    # Smoke test release
-    run_step("smoke test release", lambda: smoke_test_release())
-    run_step(
-        "If smoke test has failed, delete release",
-        lambda: remove_release(github_repo_api_url, args.github_token, release_id)
-    )
+        run_step("upload script generator to release", lambda: upload_script_generator_asset_step())
+        # Smoke test release
+        run_step("smoke test release", lambda: smoke_test_release())
+        run_step(
+            "If smoke test has failed, delete release",
+            lambda: remove_release(github_repo_api_url, args.github_token, release_id)
+        )
+    except StepException as e:
+        print(f"Failed step in releasing: {e.message}")
