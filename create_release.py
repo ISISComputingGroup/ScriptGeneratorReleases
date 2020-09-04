@@ -33,9 +33,9 @@ def mount_share(script_gen_version: str, drive_to_mount: str) -> None:
             Check your internet and VPN connection, try it in a file explorer.\n
             Original error: {e}
         """)
-    if not os.path.isdir(f"{drive_to_mount}:\\script_generator"):
+    if not os.path.isdir(f"{drive_to_mount}\\script_generator"):
         raise StepException(f"""
-            {drive_to_mount}:\\script_generator is not a directory.
+            {drive_to_mount}\\script_generator is not a directory.
             Failed to mount {drive_to_mount} to drive {share}.
         """)
 
@@ -51,8 +51,13 @@ def copy_from_share(mounted_drive: str) -> None:
     destination: str = "script_generator"
     try:
         print(f"Deleting destination ({destination}) directory")
-        shutil.rmtree(destination)
-        print(f"Copying from {source} to {destination}")
+        try:
+            shutil.rmtree(destination)
+        except FileNotFoundError:
+            pass
+        except (shutil.Error, OSError):
+            input(f"Failed to delete {destination}. Please do so manually and then press enter to continue.")
+        print(f"Copying from {source} to {destination}. This might take a few minutes.")
         shutil.copytree(source, destination)
     except (shutil.Error, OSError) as e:
         raise StepException(f"""
@@ -168,7 +173,7 @@ def smoke_test_release() -> None:
     input(
         "Follow steps on https://github.com/ISISComputingGroup/ibex_user_manual/wiki"
         "/Downloading-and-Installing-The-IBEX-Script-Generator to download and install the script generator.\n"
-        "Once finished, press enter to continue. "
+        "Once finished, press enter to continue.\n"
     )
     input(
         "Rename C:\\Instrument\\Apps\\Python3 to C:\\Instrument\\Apps\\Python3_temp "
@@ -177,7 +182,7 @@ def smoke_test_release() -> None:
         "Once finished, press enter to continue.\n"
     )
     input(
-        "Start up the downloaded release by running the .exe.\n"
+        "Close and restart the script generator and check that it is using the bundled python.\n"
         "The script generator should load in less than a few seconds.\n"
         "Once finished, press enter to continue.\n"
     )
@@ -234,8 +239,8 @@ def smoke_test_release() -> None:
     input(
         "Add two valid actions.\n"
         "Save the parameters.\n"
-        "Load the saved parameters back twice, the first time replacing and the second appending.\n"
-        "Are rows replaced and then appended to correctly?\n"
+        "Load the saved parameters back twice, the first time appending and the second replacing.\n"
+        "Are rows appended to and then replace correctly?\n"
     )
     # Estimated run time
     input(
@@ -280,10 +285,10 @@ def remove_release(api_url: str, api_token: str, release_id: str) -> None:
             f"{api_url}/{release_id}", headers={"Authorization": f"token {api_token}"}
         )
         if 200 <= response.status_code < 300:
-            print(f"Successfully confirmed and published release, status code: {response.status_code}.")
+            print(f"Successfully deleted release, status code: {response.status_code}.")
         else:
             raise StepException(f"""
-                Failed to confirm and publish release, github reponse:
+                Failed to delete release, github reponse:
                 {response.status_code}: {response.reason}
             """)
     else:
