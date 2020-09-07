@@ -12,6 +12,29 @@ class StepException(Exception):
         self.message = message
 
 
+def user_responds_yes(prompt) -> bool:
+    """
+    Wait for the user to input that starts with y (e.g. Yes/yes/Y/y) and return true if they do or false if they don't.
+
+    Args
+        prompt (str): The prompt to display to the user before waiting for a response.
+
+    Returns
+        bool: True if user responds with a value that starts with either lower or upper case y, false if not
+    """
+    return input(f"{prompt}? (Y/N) ")[0].lower() == "y"
+
+
+def wait_for_user_to_press_enter(prompt) -> None:
+    """
+    Wait for the user to press enter.
+
+    Args
+        prompt (str): The prompt to display to the user before waiting for an enter.
+    """
+    input(f"{prompt}\nPress enter to continue")
+
+
 def mount_share(script_gen_version: str, drive_to_mount: str) -> None:
     """
     Call net use to mount the script generator share for the given script_gen_version to the drive_to_mount.
@@ -56,7 +79,9 @@ def copy_from_share(mounted_drive: str) -> None:
         except FileNotFoundError:
             pass
         except (shutil.Error, OSError):
-            input(f"Failed to delete {destination}. Please do so manually and then press enter to continue.")
+            wait_for_user_to_press_enter(
+                f"Failed to delete {destination}. Please do so manually and then press enter to continue."
+            )
         print(f"Copying from {source} to {destination}. This might take a few minutes.")
         shutil.copytree(source, destination)
     except (shutil.Error, OSError) as e:
@@ -79,22 +104,23 @@ def remove_sms_lib() -> None:
             sms_lib_dir = os.path.join(bundled_python_dir, "Lib", "site-packages", "smslib")
             break
     else:
-        input(
+        wait_for_user_to_press_enter(
             f"Could not find preferences plugin that contains Python. "
-            f"Please remove smslib from bundled Python manually and press enter to continue."
+            f"Please remove smslib from bundled Python manually."
         )
-    input(
+    wait_for_user_to_press_enter(
         f"\nPlease search for usages of smslib in {bundled_python_dir}.\n"
         f"E.g. in bash `grep -r smslib {bundled_python_dir}`\n\n"
         f"If any instances of usage do not import with a try except for ImportError and a mocked version of smslib "
-        f"in the except clause please correct this.\n\n"
-        f"Press enter when finished.\n"
+        f"in the except clause please correct this.\n"
     )
     try:
         if sms_lib_dir is not None:
             shutil.rmtree(sms_lib_dir)
     except (FileNotFoundError, OSError):
-        input(f"Could not remove {sms_lib_dir}. Please do so manually and press enter to continue.")
+        wait_for_user_to_press_enter(
+            f"Could not remove {sms_lib_dir}. Please do so manually."
+        )
 
 
 def zip_script_gen() -> None:
@@ -194,10 +220,7 @@ def upload_script_generator_asset_step(upload_url: str, api_url: str, api_token:
             asset_id = asset["id"]
             break
     if asset_id is not None:
-        user_response = input(
-            "script_generator.zip already exists. Would you like to delete it and upload a new one? (Y/N) "
-        )
-        if user_response[0].lower() == "y":
+        if user_responds_yes("script_generator.zip already exists. Would you like to delete it and upload a new one"):
             delete_asset_response: requests.Response = requests.delete(
                 f"{api_url}/assets/{asset_id}",
                 headers={"Authorization": f"token {api_token}"}
@@ -222,84 +245,81 @@ def smoke_test_release() -> None:
     Steps to smoke test the downloaded release of the script generator.
     """
     # Startup
-    input(
+    wait_for_user_to_press_enter(
         "Follow steps on https://github.com/ISISComputingGroup/ibex_user_manual/wiki"
         "/Downloading-and-Installing-The-IBEX-Script-Generator to download and install the script generator.\n"
-        "Once finished, press enter to continue.\n"
     )
-    input(
+    wait_for_user_to_press_enter(
         "Rename C:\\Instrument\\Apps\\Python3 to C:\\Instrument\\Apps\\Python3_temp "
         "to ensure smoke testing uses correct Python.\n"
         "You may have to stop and rerun this script (you can skip past steps).\n"
-        "Once finished, press enter to continue.\n"
     )
-    input(
+    wait_for_user_to_press_enter(
         "Close and restart the script generator and check that it is using the bundled python.\n"
         "The script generator should load in less than a few seconds.\n"
-        "Once finished, press enter to continue.\n"
     )
-    input(
+    wait_for_user_to_press_enter(
         "Is there a box containing script definition errors?\n"
         "If none then that is fine, if there are they logical or are they a problem?\n"
         "Does the help text, and the columns update?\n"
     )
-    input(
+    wait_for_user_to_press_enter(
         "Attempt to switch between script definitions.\n"
         "Does the help text, and the columns update?\n"
     )
     # Handling actions in the table + validity
-    input(
+    wait_for_user_to_press_enter(
         "On a relevant script definition add 2 actions.\n"
         "Does the focus changed to the added action?\n"
     )
-    input(
+    wait_for_user_to_press_enter(
         "Change the values of both actions to be valid.\n"
         "Change the values of both actions to be invalid.\n"
         "When you click the Get Validity Errors button does a list of errors show?\n"
         "When you hover over an invalid row, does a relevant tooltip appear?\n"
     )
-    input(
+    wait_for_user_to_press_enter(
         "Change the values of both actions to be valid but different.\n"
         "Does the display of whether the actions are valid or not make sense?\n"
         "Does the Get Validity Errors button become enabled and disabled correctly?\n"
     )
-    input(
+    wait_for_user_to_press_enter(
         "Duplicate one of the actions.\n"
         "Independently change the values of the new and duplicated actions.\n"
         "Do values both change independently and not affect each other's value?\n"
     )
-    input(
+    wait_for_user_to_press_enter(
         "Highlight two actions and duplicate them.\n"
         "Are there two new values?\n"
         "Do they have the expected values?\n"
         "Independently change the values of the new and duplicated actions.\n"
         "Do values both change independently and not affect each other's value?\n"
     )
-    input(
+    wait_for_user_to_press_enter(
         "Highlight actions and move them up and down.\n"
         "Do the actions rows move around logically?\n"
     )
-    input(
+    wait_for_user_to_press_enter(
         "Highlight two actions and delete them.\n"
         "Were the selected two actions deleted?\n"
     )
-    input(
+    wait_for_user_to_press_enter(
         "Press the Clear All Actions button.\n"
         "Are all rows deleted?\n"
     )
     # Parameter handling
-    input(
+    wait_for_user_to_press_enter(
         "Add two valid actions.\n"
         "Save the parameters.\n"
         "Load the saved parameters back twice, the first time appending and the second replacing.\n"
         "Are rows appended to and then replace correctly?\n"
     )
     # Estimated run time
-    input(
+    wait_for_user_to_press_enter(
         "Does the estimated run time display logically add estimated row times together?\n"
     )
     # Generation
-    input(
+    wait_for_user_to_press_enter(
         "Press the generate script button.\n"
         "Save and open in the editor.\n"
         "Does the generated script display in notepad++?\n"
@@ -308,16 +328,15 @@ def smoke_test_release() -> None:
         "Is there a variable called value containing a compressed json string?\n"
     )
     # Manual
-    input(
+    wait_for_user_to_press_enter(
         "Click the Open Manual button.\n"
         "Has the Using the Script Generator page opened in a web browser?\n"
     )
     # Log checks
-    input(
+    wait_for_user_to_press_enter(
         "Check log for any issues complaining about mocking smslib and others that look suspicious.\n"
-        "Press enter to continue.\n"
     )
-    input(r"Undo name change of C:\Instrument\Apps\Python3. Press enter once done.")
+    wait_for_user_to_press_enter(r"Undo name change of C:\Instrument\Apps\Python3.")
 
 
 def remove_release(api_url: str, api_token: str, release_id: str) -> None:
@@ -332,7 +351,7 @@ def remove_release(api_url: str, api_token: str, release_id: str) -> None:
     if release_id is None:
         print("Release id has not been defined when creating the release.")
         release_id = input("Please input release id >> ")
-    if input("Are you sure you want to delete the release? ")[0].lower() == "y":
+    if user_responds_yes("Are you sure you want to delete the release"):
         response: requests.Response = requests.delete(
             f"{api_url}/{release_id}", headers={"Authorization": f"token {api_token}"}
         )
@@ -358,7 +377,7 @@ def run_step(step_description: str, step_lambda: Callable) -> Any:
     Returns:
         Any: Returns what is returned by the lambda function or None.
     """
-    if input(f"\n\nDo STEP: {step_description}? (Y/N) ")[0].lower() == "y":
+    if user_responds_yes(f"\n\nDo STEP: {step_description}"):
         print(f"STEP: {step_description}")
         return step_lambda()
 
