@@ -332,7 +332,7 @@ def remove_release(api_url: str, api_token: str, release_id: str) -> None:
     if release_id is None:
         print("Release id has not been defined when creating the release.")
         release_id = input("Please input release id >> ")
-    if input("Are you sure you want to delete the release? ")[0].lower() == "y":
+    if input("Are you sure you want to delete the release? (Y/N) ")[0].lower() == "y":
         response: requests.Response = requests.delete(
             f"{api_url}/{release_id}", headers={"Authorization": f"token {api_token}"}
         )
