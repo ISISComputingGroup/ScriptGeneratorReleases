@@ -148,21 +148,73 @@ def create_release(script_gen_version: str, api_url: str, api_token: str) -> str
         """)
 
 
-def upload_script_generator_asset_step() -> None:
+def _upload_script_generator_asset(api_url: str, api_token: str, release_id: str) -> None:
     """
-    Instructions to check if the asset already exists and delete if it does and the user wants to.
-    Upload the zipped script generator to the release.
+    Upload the zipped script generator to the release with release_id.
+    Args:
+        api_url (str): The github uploads api url to upload the zip to
+        api_token (str): A personal access token to push the zip to
+        release_id (str): The id of the github script generator release to upload the zip to
     """
-    input(
-        "Unfortunately we cannot script the uploading of an asset as it fails consistently.\n"
-        "In the ScriptGeneratorReleases folder there should be a script_generator.zip file. "
-        "If not rerun the zip script generator step.\n\n"
-        "Visit https://github.com/ISISComputingGroup/ScriptGeneratorReleases/releases and locate the release you want "
-        "to upload the zip to, click edit on this release.\n"
-        "Drag and drop script_generator.zip into the box saying `Attach binaries by dropping...`.\n"
-        "This will then take a minute or so to upload.\n\n"
-        "Press enter when complete.\n"
+    response: requests.Response = requests.post(
+        f"{api_url}/{release_id}/assets?name=script_generator.zip",
+        data=open("script_generator.zip", "rb"),
+        headers={
+            'Accept': 'application/vnd.github.v3+json',
+            "Authorization": f"token {api_token}",
+            'Content-Type': 'application/zip',
+        }
     )
+    if 200 <= response.status_code < 300:
+        print(f"Successfully uploaded script_generator.zip assert, status code: {response.status_code}.")
+        print(str(response.json()))
+    else:
+        raise StepException(f"Failed to create release: {response.status_code}: {response.reason}")
+
+
+def upload_script_generator_asset_step(upload_url: str, api_url: str, api_token: str, release_id: str) -> None:
+    """
+    Check if the asset already exists and delete if it does and the user wants to.
+    Upload the zipped script generator to the release with release_id.
+    Args:
+        upload_url (str): The github uploads api url to upload the zip to
+        api_url (str): The github api url to check assets and delete assets with
+        api_token (str): A personal access token to push the zip to
+        release_id (str): The id of the github script generator release to upload the zip to
+    """
+    if release_id is None:
+        print("Release id has not been defined when creating the release.")
+        release_id = input("Please input release id >> ")
+    check_assets_response: requests.Response = requests.get(
+        f"{api_url}/{release_id}/assets",
+    )
+    asset_id = None
+    for asset in check_assets_response.json():
+        if asset["name"] == "script_generator.zip":
+            asset_id = asset["id"]
+            break
+    if asset_id is not None:
+        user_response = input(
+            "script_generator.zip already exists. Would you like to delete it and upload a new one? (Y/N) "
+        )
+        if user_response[0].lower() == "y":
+            delete_asset_response: requests.Response = requests.delete(
+                f"{api_url}/assets/{asset_id}",
+                headers={"Authorization": f"token {api_token}"}
+            )
+            if 200 <= delete_asset_response.status_code < 300:
+                print(
+                    f"Successfully deleted script_generator.zip asset, "
+                    f"status code: {delete_asset_response.status_code}."
+                )
+            else:
+                print(
+                    f"Failed to delete script_generator.zip asset. Please do so manually. Error: "
+                    f"{delete_asset_response.status_code}: {delete_asset_response.reason}"
+                )
+            _upload_script_generator_asset(upload_url, api_token, release_id)
+    else:
+        _upload_script_generator_asset(upload_url, api_token, release_id)
 
 
 def smoke_test_release() -> None:
@@ -340,7 +392,12 @@ if __name__ == "__main__":
         release_id = run_step(
             "create release", lambda: create_release(args.script_gen_version, github_repo_api_url, args.github_token)
         )
-        run_step("upload script generator to release", lambda: upload_script_generator_asset_step())
+        run_step(
+            "upload script generator to release",
+            lambda: upload_script_generator_asset_step(
+                github_repo_uploads_url, github_repo_api_url, args.github_token, release_id
+            )
+        )
         # Smoke test release
         run_step("smoke test release", lambda: smoke_test_release())
         run_step(
