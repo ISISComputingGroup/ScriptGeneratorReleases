@@ -42,7 +42,7 @@ def mount_share(script_gen_version: str, drive_to_mount: str) -> None:
 
 def copy_from_share(mounted_drive: str) -> None:
     """
-    Remove any past downloaded script generators with the share on the mounted_drive to the local area.
+    Remove any past downloaded script generators and copy the updated version from the mounted_drive.
 
     Args:
         mounted_drive str: The letter drive that has been mounted from the share to copy the script generator off.
