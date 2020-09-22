@@ -162,6 +162,7 @@ def create_release(script_gen_version: str, api_url: str, api_token: str) -> str
             "draft": False,
             "prerelease": False
     })
+
     if 200 <= response.status_code < 300:
         print(f"Successfully created release, status code: {response.status_code}.")
         release_id = str(response.json()["id"])
@@ -171,6 +172,7 @@ def create_release(script_gen_version: str, api_url: str, api_token: str) -> str
         raise StepException(f"""
             Failed to create release, github response:
             {response.status_code}: {response.reason}
+            Response text: {response.text}
         """)
 
 
