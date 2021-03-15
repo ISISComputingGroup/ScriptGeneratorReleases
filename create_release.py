@@ -4,6 +4,7 @@ import subprocess
 import requests
 import shutil
 from typing import Callable, Any
+from git import Repo
 
 
 class StepException(Exception):
@@ -142,6 +143,36 @@ def zip_script_gen() -> None:
         """)
 
 
+def create_tag(script_gen_version: str) -> str:
+    """
+    Create and push a tag of the ScriptGeneratorRelease repository.
+    The tag is later to be used to create a release on.
+
+    Args:
+        script_gen_version (str): The version of the script generator to create a tag for.
+
+    Returns:
+        str: The name of the tag that has been created.
+
+    Raises:
+        StepException: If the local repository is dirty and the user opts not to continue.
+    """
+    print("Creating Tag")
+    repo_directory = os.path.dirname(os.path.realpath(__file__))
+    repo = Repo(path=repo_directory)
+    if not repo.is_dirty() or (repo.is_dirty() and user_responds_yes("Repo is dirty, ok to continue")):
+        tag_name = f"tag_{script_gen_version}"
+        repo.create_tag(tag_name)
+        print(f"Tag {tag_name} created")
+        push_info = repo.remotes.origin.push(refspec=f"refs/tags/{tag_name}:refs/heads/origin")
+        print(f"Tag pushed, summary: {push_info[0].summary}")
+        return tag_name
+    else:
+        raise StepException(
+            "Opted to not create tag for release on a dirty repo. Please commit changes or clean repo and try again."
+        )
+
+
 def create_release(script_gen_version: str, api_url: str, api_token: str) -> str:
     """
     Create a draft release in github as a placeholder to upload the zipped script generator to.
@@ -155,8 +186,10 @@ def create_release(script_gen_version: str, api_url: str, api_token: str) -> str
     Returns:
          str: The id of the release to push the zipped script generator to.
     """
+    tag_name = create_tag(script_gen_version)
+    print("Creating Release")
     response: requests.Response = requests.post(api_url, headers={"Authorization": f"token {api_token}"}, json={
-            "tag_name": "base",
+            "tag_name": tag_name,
             "name": f"v{script_gen_version}",
             "body": f"Version {script_gen_version} of the script generator available for download",
             "draft": False,
