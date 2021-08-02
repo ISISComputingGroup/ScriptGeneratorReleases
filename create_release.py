@@ -45,7 +45,7 @@ def mount_share(script_gen_version: str, drive_to_mount: str) -> None:
         drive_to_mount (str): The letter of the drive to mount e.g. Z: or U:
     """
     share: str = r"\\isis.cclrc.ac.uk\inst$\Kits$\CompGroup\ICP" \
-                 r"\Releases\script_generator_release\Script_Gen_{}\script_generator".format(script_gen_version)
+                 r"\Releases\script_generator_release\{}\script_generator".format(script_gen_version)
     try:
         subprocess.check_call(f"net use {drive_to_mount} {share}", shell=True, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
