@@ -1,14 +1,14 @@
 import argparse
 import os
-import subprocess
-import requests
 import shutil
-from typing import Callable, Any
+import subprocess
+from typing import Any, Callable
+
+import requests
 from git import Repo
 
 
 class StepException(Exception):
-
     def __init__(self, message):
         self.message = message
 
@@ -44,10 +44,14 @@ def mount_share(script_gen_version: str, drive_to_mount: str) -> None:
         script_gen_version (str): The version of the script generator to mount
         drive_to_mount (str): The letter of the drive to mount e.g. Z: or U:
     """
-    share: str = r"\\isis.cclrc.ac.uk\inst$\Kits$\CompGroup\ICP" \
-                 r"\Releases\script_generator_release\{}\script_generator".format(script_gen_version)
+    share: str = (
+        r"\\isis.cclrc.ac.uk\inst$\Kits$\CompGroup\ICP"
+        r"\Releases\script_generator_release\{}\script_generator".format(script_gen_version)
+    )
     try:
-        subprocess.check_call(f"net use {drive_to_mount} {share}", shell=True, stderr=subprocess.STDOUT)
+        subprocess.check_call(
+            f"net use {drive_to_mount} {share}", shell=True, stderr=subprocess.STDOUT
+        )
     except subprocess.CalledProcessError as e:
         raise StepException(f"""
             Failed to mount {drive_to_mount} to drive {share}.
@@ -100,14 +104,16 @@ def remove_sms_lib() -> None:
     sms_lib_dir = None
     bundled_python_dir = "<bundled python directory>"
     for name in os.listdir(plugins_dir):
-        if os.path.isdir(os.path.join(plugins_dir, name)) and name.startswith("uk.ac.stfc.isis.ibex.preferences"):
+        if os.path.isdir(os.path.join(plugins_dir, name)) and name.startswith(
+            "uk.ac.stfc.isis.ibex.preferences"
+        ):
             bundled_python_dir = os.path.join(plugins_dir, name, "resources", "Python3")
             sms_lib_dir = os.path.join(bundled_python_dir, "Lib", "site-packages", "smslib")
             break
     else:
         wait_for_user_to_press_enter(
-            f"Could not find preferences plugin that contains Python. "
-            f"Please remove smslib from bundled Python manually."
+            "Could not find preferences plugin that contains Python. "
+            "Please remove smslib from bundled Python manually."
         )
     wait_for_user_to_press_enter(
         f"\nPlease search for usages of smslib in {bundled_python_dir}.\n"
@@ -119,9 +125,7 @@ def remove_sms_lib() -> None:
         if sms_lib_dir is not None:
             shutil.rmtree(sms_lib_dir)
     except (FileNotFoundError, OSError):
-        wait_for_user_to_press_enter(
-            f"Could not remove {sms_lib_dir}. Please do so manually."
-        )
+        wait_for_user_to_press_enter(f"Could not remove {sms_lib_dir}. Please do so manually.")
 
 
 def zip_script_gen() -> None:
@@ -160,7 +164,9 @@ def create_tag(script_gen_version: str) -> str:
     print("Creating Tag")
     repo_directory = os.path.dirname(os.path.realpath(__file__))
     repo = Repo(path=repo_directory)
-    if not repo.is_dirty() or (repo.is_dirty() and user_responds_yes("Repo is dirty, ok to continue")):
+    if not repo.is_dirty() or (
+        repo.is_dirty() and user_responds_yes("Repo is dirty, ok to continue")
+    ):
         tag_name = f"tag_{script_gen_version}"
         repo.create_tag(tag_name)
         print(f"Tag {tag_name} created")
@@ -188,13 +194,17 @@ def create_release(script_gen_version: str, api_url: str, api_token: str) -> str
     """
     tag_name = create_tag(script_gen_version)
     print("Creating Release")
-    response: requests.Response = requests.post(api_url, headers={"Authorization": f"token {api_token}"}, json={
+    response: requests.Response = requests.post(
+        api_url,
+        headers={"Authorization": f"token {api_token}"},
+        json={
             "tag_name": tag_name,
             "name": f"v{script_gen_version}",
             "body": f"Version {script_gen_version} of the script generator available for download",
             "draft": False,
-            "prerelease": False
-    })
+            "prerelease": False,
+        },
+    )
 
     if 200 <= response.status_code < 300:
         print(f"Successfully created release, status code: {response.status_code}.")
@@ -221,19 +231,23 @@ def _upload_script_generator_asset(api_url: str, api_token: str, release_id: str
         f"{api_url}/{release_id}/assets?name=script_generator.zip",
         data=open("script_generator.zip", "rb"),
         headers={
-            'Accept': 'application/vnd.github.v3+json',
+            "Accept": "application/vnd.github.v3+json",
             "Authorization": f"token {api_token}",
-            'Content-Type': 'application/zip',
-        }
+            "Content-Type": "application/zip",
+        },
     )
     if 200 <= response.status_code < 300:
-        print(f"Successfully uploaded script_generator.zip assert, status code: {response.status_code}.")
+        print(
+            f"Successfully uploaded script_generator.zip assert, status code: {response.status_code}."
+        )
         print(str(response.json()))
     else:
         raise StepException(f"Failed to create release: {response.status_code}: {response.reason}")
 
 
-def upload_script_generator_asset_step(upload_url: str, api_url: str, api_token: str, release_id: str) -> None:
+def upload_script_generator_asset_step(
+    upload_url: str, api_url: str, api_token: str, release_id: str
+) -> None:
     """
     Check if the asset already exists and delete if it does and the user wants to.
     Upload the zipped script generator to the release with release_id.
@@ -255,10 +269,11 @@ def upload_script_generator_asset_step(upload_url: str, api_url: str, api_token:
             asset_id = asset["id"]
             break
     if asset_id is not None:
-        if user_responds_yes("script_generator.zip already exists. Would you like to delete it and upload a new one"):
+        if user_responds_yes(
+            "script_generator.zip already exists. Would you like to delete it and upload a new one"
+        ):
             delete_asset_response: requests.Response = requests.delete(
-                f"{api_url}/assets/{asset_id}",
-                headers={"Authorization": f"token {api_token}"}
+                f"{api_url}/assets/{asset_id}", headers={"Authorization": f"token {api_token}"}
             )
             if 200 <= delete_asset_response.status_code < 300:
                 print(
@@ -335,13 +350,9 @@ def smoke_test_release() -> None:
         "Do the actions rows move around logically?\n"
     )
     wait_for_user_to_press_enter(
-        "Highlight two actions and delete them.\n"
-        "Were the selected two actions deleted?\n"
+        "Highlight two actions and delete them.\n" "Were the selected two actions deleted?\n"
     )
-    wait_for_user_to_press_enter(
-        "Press the Clear All Actions button.\n"
-        "Are all rows deleted?\n"
-    )
+    wait_for_user_to_press_enter("Press the Clear All Actions button.\n" "Are all rows deleted?\n")
     # Parameter handling
     wait_for_user_to_press_enter(
         "Add two valid actions.\n"
@@ -421,17 +432,32 @@ if __name__ == "__main__":
     # Get arguments
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-v", "--version", action="store", type=str, dest="script_gen_version", required=True,
-        help="The script generator version to create a release of"
+        "-v",
+        "--version",
+        action="store",
+        type=str,
+        dest="script_gen_version",
+        required=True,
+        help="The script generator version to create a release of",
     )
     parser.add_argument(
-        "-t", "--token", action="store", type=str, dest="github_token", required=True,
+        "-t",
+        "--token",
+        action="store",
+        type=str,
+        dest="github_token",
+        required=True,
         help="Your github personal access token. "
-             "See https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token."
+        "See https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token.",
     )
     parser.add_argument(
-        "-d", "--drive", action="store", type=str, dest="drive", default="Z:",
-        help="The drive to mount the shares to, defaults to Z:"
+        "-d",
+        "--drive",
+        action="store",
+        type=str,
+        dest="drive",
+        default="Z:",
+        help="The drive to mount the shares to, defaults to Z:",
     )
     args = parser.parse_args()
     try:
@@ -441,22 +467,27 @@ if __name__ == "__main__":
         run_step("remove sms lib", lambda: remove_sms_lib())
         run_step("zip script generator", lambda: zip_script_gen())
         # Create release
-        github_repo_api_url = "https://api.github.com/repos/ISISComputingGroup/ScriptGeneratorReleases/releases"
-        github_repo_uploads_url = "https://uploads.github.com/repos/ISISComputingGroup/ScriptGeneratorReleases/releases"
+        github_repo_api_url = (
+            "https://api.github.com/repos/ISISComputingGroup/ScriptGeneratorReleases/releases"
+        )
+        github_repo_uploads_url = (
+            "https://uploads.github.com/repos/ISISComputingGroup/ScriptGeneratorReleases/releases"
+        )
         release_id = run_step(
-            "create release", lambda: create_release(args.script_gen_version, github_repo_api_url, args.github_token)
+            "create release",
+            lambda: create_release(args.script_gen_version, github_repo_api_url, args.github_token),
         )
         run_step(
             "upload script generator to release",
             lambda: upload_script_generator_asset_step(
                 github_repo_uploads_url, github_repo_api_url, args.github_token, release_id
-            )
+            ),
         )
         # Smoke test release
         run_step("smoke test release", lambda: smoke_test_release())
         run_step(
             "If smoke test has failed, delete release",
-            lambda: remove_release(github_repo_api_url, args.github_token, release_id)
+            lambda: remove_release(github_repo_api_url, args.github_token, release_id),
         )
     except StepException as e:
         print(f"Failed step in releasing: {e.message}")
