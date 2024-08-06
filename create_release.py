@@ -1,9 +1,10 @@
 import argparse
 import os
-import subprocess
-import requests
 import shutil
-from typing import Callable, Any
+import subprocess
+from typing import Any, Callable
+
+import requests
 from git import Repo
 
 
@@ -106,8 +107,8 @@ def remove_sms_lib() -> None:
             break
     else:
         wait_for_user_to_press_enter(
-            f"Could not find preferences plugin that contains Python. "
-            f"Please remove smslib from bundled Python manually."
+            "Could not find preferences plugin that contains Python. "
+            "Please remove smslib from bundled Python manually."
         )
     wait_for_user_to_press_enter(
         f"\nPlease search for usages of smslib in {bundled_python_dir}.\n"
